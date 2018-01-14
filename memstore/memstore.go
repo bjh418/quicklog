@@ -137,7 +137,9 @@ func (m *memstore) log(time time.Time, level int, line string) {
 
 func (m *memstore) Each(f func (Entry)) {
 	for _, slice := range m.slices {
-		for _, entry := range slice {
+		l := len(slice)
+		for i := 0; i < l; i++ {
+			entry := slice[i]
 			f(entry)
 		}
 	}
