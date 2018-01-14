@@ -10,7 +10,7 @@ import (
 )
 
 type Server interface {
-	Run(f func(conn net.Conn, e memstore.Entry))
+	Run(f func(conn net.Conn, e memstore.Entry) error) error
 }
 
 type server struct {
@@ -32,9 +32,13 @@ func WaitForShutdownSignal() {
 	return
 }
 
-func (s *server) Run(f func(conn net.Conn, e memstore.Entry)) {
-	s.memstore.Each(func(e memstore.Entry) {
-		f(s.conn, e)
-		time.Sleep(500 * time.Millisecond)
+func (s *server) Run(f func(conn net.Conn, e memstore.Entry) error) error {
+	return s.memstore.Tail(func(e memstore.Entry) error {
+		err := f(s.conn, e)
+		if err != nil {
+			return err
+		}
+		time.Sleep(100 * time.Millisecond)
+		return nil
 	})
 }

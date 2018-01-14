@@ -1,10 +1,11 @@
 package memstore
 
 import (
-	"time"
-	"github.com/devxfactor/quicklog/utils"
 	"errors"
 	"fmt"
+	"time"
+	"github.com/devxfactor/quicklog/shared"
+	"github.com/devxfactor/quicklog/utils"
 )
 
 type Memstore interface {
@@ -24,7 +25,7 @@ type Memstore interface {
 	Log(time time.Time, level Level, line string) error
 	Logf(time time.Time, level Level, format string, args ...interface{}) error
 
-	Each(f func (Entry))
+	Tail(f func (Entry) error) error
 }
 
 type Entry interface {
@@ -54,7 +55,7 @@ func init() {
 }
 
 type memstore struct {
-	slices [][]entry
+	list shared.Log
 }
 
 type entry struct {
@@ -64,8 +65,8 @@ type entry struct {
 }
 
 func NewMemstore() Memstore {
-	m := &memstore{slices: [][]entry{}}
-	m.slices = append(m.slices, []entry{})
+	list, _ := shared.NewLog(10000)
+	m := &memstore{list: list}
 	return m
 }
 
@@ -132,17 +133,13 @@ func (m *memstore) Log(time time.Time, level Level, line string) error {
 }
 
 func (m *memstore) log(time time.Time, level int, line string) {
-	m.slices[0] = append(m.slices[0], entry{time: time, level: level, line: line})
+	m.list.Add(entry{time: time, level: level, line: line})
 }
 
-func (m *memstore) Each(f func (Entry)) {
-	for _, slice := range m.slices {
-		l := len(slice)
-		for i := 0; i < l; i++ {
-			entry := slice[i]
-			f(entry)
-		}
-	}
+func (m *memstore) Tail(f func (Entry) error) error {
+	return m.list.Tail(func (value interface{}) error {
+		return f(value.(Entry))
+	})
 }
 
 func (e entry) Time() time.Time {

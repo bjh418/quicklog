@@ -1,13 +1,13 @@
 package main
 
 import (
-	"github.com/devxfactor/quicklog/memstore"
-	"time"
 	"fmt"
-	"net"
 	"log"
-	"github.com/devxfactor/quicklog/socket"
+	"net"
 	"os"
+	"time"
+	"github.com/devxfactor/quicklog/memstore"
+	"github.com/devxfactor/quicklog/socket"
 )
 
 func main() {
@@ -27,28 +27,30 @@ func main() {
 		log.Fatalf("Error listening on unix:%s: %v", socketName, err)
 	}
 
-	conn1, err := listener.Accept()
-	if err != nil {
-		log.Fatalf("Error accepting connection on unix:%s: %v", socketName, err)
-	}
-
-	conn2, err := listener.Accept()
-	if err != nil {
-		log.Fatalf("Error accepting connection on unix:%s: %v", socketName, err)
-	}
-
-	server1 := socket.NewServer(conn1, mstore)
-	server2 := socket.NewServer(conn2, mstore)
-
-	f := func(conn net.Conn, e memstore.Entry) {
+	f := func(conn net.Conn, e memstore.Entry) error {
 		fmt.Fprintf(conn, "%s %-5s %v\n", e.Time().Format("2006-01-02 03:04:05.999-07:00"), e.Level(), e.Line())
+		return nil
 	}
 
-	go server1.Run(f)
-	go server2.Run(f)
+	serve := func() {
+		conn, err := listener.Accept()
+		if err != nil {
+			log.Fatalf("Error accepting connection on unix:%s: %v", socketName, err)
+		}
 
-	time.Sleep(1 * time.Second)
-	mstore.Errorf(time.Now(), "This isn't shown by the server runs because they only snapshot and not tail")
+		server := socket.NewServer(conn, mstore)
+		server.Run(f)
+	}
+
+	go serve()
+	go serve()
+
+	go func() {
+		for {
+			mstore.Log(time.Now(), memstore.Level("INFO"), "another line")
+			time.Sleep(500 * time.Millisecond)
+		}
+	}()
 
 	socket.WaitForShutdownSignal()
 	listener.Close()
