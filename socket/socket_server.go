@@ -10,7 +10,7 @@ import (
 )
 
 type Server interface {
-	Run(f func(conn net.Conn, e memstore.Entry) error) error
+	Run(f func(conn net.Conn, line string) error) error
 }
 
 type server struct {
@@ -32,9 +32,9 @@ func WaitForShutdownSignal() {
 	return
 }
 
-func (s *server) Run(f func(conn net.Conn, e memstore.Entry) error) error {
-	return s.memstore.Tail(func(e memstore.Entry) error {
-		err := f(s.conn, e)
+func (s *server) Run(f func(conn net.Conn, line string) error) error {
+	return s.memstore.Tail(func(line string) error {
+		err := f(s.conn, line)
 		if err != nil {
 			return err
 		}

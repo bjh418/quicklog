@@ -7,9 +7,12 @@ import (
 	"log"
 	"net"
 	"os"
-	"time"
 	"github.com/devxfactor/quicklog/memstore"
 	"github.com/devxfactor/quicklog/socket"
+)
+
+var (
+	TimestampFormat = "2006-01-02T15:04:05Z"
 )
 
 func ServeLoggers(socketName string, mstore memstore.Memstore) {
@@ -31,22 +34,25 @@ func ServeLoggers(socketName string, mstore memstore.Memstore) {
 		}
 
 		// start reader (for logger)
-		go func() {
-			reader := bufio.NewReader(conn)
-			for {
-				line, err := reader.ReadString('\n')
-				if len(line) > 0 {
-					mstore.Log(time.Now(), memstore.Level("INFO"), line[0:len(line) - 1])
-				}
-				if err != nil {
-					if err != io.EOF {
-						fmt.Errorf("Error reading unix:%s: %v", socketName, err)
-					}
-					conn.Close()
-					return
-				}
+		go readInput(socketName, conn, mstore)
+	}
+}
+
+func readInput(socketName string, conn net.Conn, mstore memstore.Memstore) {
+	reader := bufio.NewReader(conn)
+
+	for {
+		line, err := reader.ReadString('\n')
+		if len(line) > 0 {
+			mstore.Log(line)
+		}
+		if err != nil {
+			if err != io.EOF {
+				fmt.Errorf("Error reading unix:%s: %v", socketName, err)
 			}
-		}()
+			conn.Close()
+			return
+		}
 	}
 }
 
@@ -71,8 +77,7 @@ func ServeTailers(socketName string, mstore memstore.Memstore) {
 		// start writer (for tailer)
 		go func() {
 			writer := bufio.NewWriter(conn)
-			err := mstore.Tail(func(e memstore.Entry) error {
-				line := fmt.Sprintf("%s %-5s %v\n", e.Time().Format("2006-01-02 03:04:05.000-07:00"), e.Level(), e.Line())
+			err := mstore.Tail(func(line string) error {
 				nWritten := 0
 				for nWritten < len(line) {
 					nWrote, err := writer.Write([]byte(line[nWritten:]))
@@ -97,13 +102,6 @@ func ServeTailers(socketName string, mstore memstore.Memstore) {
 
 func main() {
 	mstore := memstore.NewMemstore()
-
-	mstore.Errorf(time.Now(), "Log level %s is enabled.", "ERROR")
-	mstore.Warnf(time.Now(), "Log level %s is enabled.", "WARN")
-	mstore.Notef(time.Now(), "Log level %s is enabled.", "NOTE")
-	mstore.Infof(time.Now(), "Log level %s is enabled.", "INFO")
-	mstore.Debugf(time.Now(), "Log level %s is enabled.", "DEBUG")
-	mstore.Tracef(time.Now(), "Log level %s is enabled.", "TRACE")
 
 	go ServeLoggers("./quicklogger.sock", mstore)
 	go ServeTailers("./quicktailer.sock", mstore)
