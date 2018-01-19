@@ -124,7 +124,7 @@ func main() {
 
 	go ServeLoggers("./quicklogger.sock", mstore)
 	go ServeTailers("./quicktailer.sock", mstore)
-	go ServeHttpTailers("localhost:8109", mstore)
+	go ServeHttpTailers("0.0.0.0:8109", mstore)
 
 	socket.WaitForShutdownSignal()
 	os.Exit(0)
