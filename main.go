@@ -9,6 +9,7 @@ import (
 	"os"
 	"github.com/devxfactor/quicklog/memstore"
 	"github.com/devxfactor/quicklog/socket"
+	"net/http"
 )
 
 var (
@@ -100,11 +101,30 @@ func ServeTailers(socketName string, mstore memstore.Memstore) {
 	}
 }
 
+func ServeHttpTailers(listenHostPort string, mstore memstore.Memstore) {
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			panic("expected http.ResponseWriter to be an http.Flusher")
+		}
+
+		mstore.Tail(func(line string) error {
+			fmt.Fprint(w, line)
+			flusher.Flush()
+			return nil
+		})
+	})
+
+	log.Print("Listening on "+ listenHostPort)
+	log.Fatal(http.ListenAndServe(listenHostPort, nil))
+}
+
 func main() {
 	mstore := memstore.NewMemstore()
 
 	go ServeLoggers("./quicklogger.sock", mstore)
 	go ServeTailers("./quicktailer.sock", mstore)
+	go ServeHttpTailers("localhost:8109", mstore)
 
 	socket.WaitForShutdownSignal()
 	os.Exit(0)

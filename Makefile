@@ -1,13 +1,11 @@
 build:
 	go build -o quicklog main.go
 
-start: stop clean
+start: stop
 	./quicklog &
 
 stop:
 	killall quicklog || echo "."
-
-clean:
 	[ ! -e quicklogger.sock ] || rm quicklogger.sock
 	[ ! -e quicktailer.sock ] || rm quicktailer.sock
 
